@@ -58,16 +58,34 @@ public:
     void updateFilter(int index);
 
     //Get filter parameter/band name/ID functions 
-    juce::String getFilterCutoffParamName(int index);
+    juce::String getFilterCutoffParamName(int index);  
     juce::String getFilterQParamName(int index);
     juce::String getFilterGainParamName(int index); 
     juce::String getFilterBandName(int index);
+    juce::String getFilterBandNum(int index);
+    juce::String getFilterMagnitudeName(int index);
+    juce::String getFilterActiveName(int index);
+    juce::String getFilterSoloName(int index); 
+    bool isBypassed(int index);
     int getBandIndexFromID(juce::String paramID);
 
     //Audio processor value tree state management stuff 
     juce::AudioProcessorValueTreeState tree;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout(); 
     void parameterChanged(const juce::String& parameter, float newValue) override;
+
+    void updateActiveBands(int index); 
+    void updateSoloedBand(int index);
+    int getSoloedBand();
+
+    void updatePlots();
+    const std::vector<double>& getMagnitudes(int index);
+    void createFrequencyPlot(juce::Path& p, const std::vector<double>& mags, const juce::Rectangle<int> bounds, float pixelsPerDouble);
+
+    std::vector<double> lowShelfMagnitudes;
+    std::vector<double> lowMidsMagnitudes;
+    std::vector<double> highMidsMagnitudes;
+    std::vector<double> highShelfMagnitudes;
 
 private:
     using FilterProcessor = juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients <float>>;
@@ -77,7 +95,14 @@ private:
     FilterProcessor highShelf;
     juce::dsp::ProcessorChain<FilterProcessor, FilterProcessor, FilterProcessor, FilterProcessor> filterChain;
 
+    
+
+    std::vector<double> frequencies;
+    std::vector<double> magnitudes;
+
     float lastSampleRate;
+    int soloedBand; 
+    bool bypassedBands[4] = { true, true, true, true };
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParametricEQAudioProcessor)

@@ -27,20 +27,43 @@ public:
 
     //==============================================================================
     void paint (juce::Graphics&) override;
+
+    
+
     void resized() override;
-
+    float getFrequencyForPosition(float pos);
     void changeListenerCallback(juce::ChangeBroadcaster* sender) override;
-
-    class FilterEditor : public juce::GroupComponent
+    
+    class FilterEditor : public juce::GroupComponent, public juce::Slider::Listener
     {
     public:
-        FilterEditor(const juce::String&); 
+        FilterEditor(ParametricEQAudioProcessor&, int);
         ~FilterEditor();
-
+        void sliderValueChanged(juce::Slider* slider) override;
         void resized() override; 
+        
+        void setSliderAttachments(int index);
+        void setButtonAttachments(int index); 
+        void setActivesEnabled();
 
+        juce::Slider* getCutoffDial();
+        juce::Label* getCutoffLabel();
+
+        juce::Slider* getGainDial();
+        juce::Label* getGainLabel();
+
+        juce::Slider* getQDial();
+        juce::Label* getQLabel();
+
+        juce::TextButton activeSwitch;
+        juce::TextButton soloSwitch;
+
+        juce::Path filterResponse;
+        juce::Colour filterResponseColour;
+
+    private:
         juce::Slider cutoffDial;
-        juce::Label freqLabel;
+        juce::Label cutoffLabel;
 
         juce::Slider gainDial;
         juce::Label gainLabel;
@@ -48,34 +71,39 @@ public:
         juce::Slider qDial;
         juce::Label qLabel;
 
-        juce::TextButton activeSwitch;
-        juce::TextButton soloSwitch;
+        ParametricEQAudioProcessor& filterEditorProcessor;
+        int index; 
 
-    private:
-        
+        juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filterSliderAttachments;
+        std::unique_ptr <juce::AudioProcessorValueTreeState::ButtonAttachment> activeAttachment;
+
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FilterEditor)
     };
 
     void genFilter(FilterEditor&);
-    void setSliderAttachments(juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment>&, FilterEditor&, int index);
+    
     void setButtonAttachments(juce::OwnedArray<juce::AudioProcessorValueTreeState::ButtonAttachment>&, FilterEditor&, int index);
-
+    
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     ParametricEQAudioProcessor& audioProcessor;
 
-    FilterEditor lowShelf{ "Low Shelf" };
-    FilterEditor param1{ "Param 1" };
-    FilterEditor param2{ "Param 2" };
-    FilterEditor highShelf{ "High Shelf" };
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParametricEQAudioProcessorEditor);
 
-    juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filter1SliderAttachments;
-    juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filter2SliderAttachments;
-    juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filter3SliderAttachments;
-    juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filter4SliderAttachments;
+    void updateFrequencyResponses();
+
+    static float getPositionForFrequency(float freq);
+
+    static float getPositionForGain(float gain, float top, float bottom);
+
+    juce::Rectangle<int> plotFrame;
+    juce::Path totalResponse;
+
+    juce::OwnedArray<FilterEditor> bands; 
 
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filter1ButtonAttachments;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParametricEQAudioProcessorEditor)
+    
 };

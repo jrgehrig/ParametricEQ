@@ -45,7 +45,7 @@ juce::String ParametricEQAudioProcessor::getFilterGainParamName(int index)
     return "invalid";
 }
 
-juce::String ParametricEQAudioProcessor::getFilterBandName(int index)
+juce::String ParametricEQAudioProcessor::getFilterBandNum(int index)
 {
     switch (index)
     {
@@ -57,10 +57,57 @@ juce::String ParametricEQAudioProcessor::getFilterBandName(int index)
     return "invalid";
 }
 
+juce::String ParametricEQAudioProcessor::getFilterBandName(int index)
+{
+    switch (index)
+    {
+    case 0: return "Low Shelf"; break;
+    case 1: return "Param 1"; break;
+    case 2: return "Param 2"; break;
+    case 3: return "High Shelf"; break;
+    }
+    return "invalid";
+}
+
+juce::String ParametricEQAudioProcessor::getFilterMagnitudeName(int index)
+{
+    switch (index)
+    {
+    case 0: return "Band0Magnitude"; break;
+    case 1: return "Band1Magnitude"; break;
+    case 2: return "Band2Magnitude"; break;
+    case 3: return "Band3Magnitude"; break;
+    }
+    return "invalid";
+}
+
+juce::String ParametricEQAudioProcessor::getFilterActiveName(int index)
+{
+    switch (index)
+    {
+    case 0: return "Band0Active"; break;
+    case 1: return "Band1Active"; break;
+    case 2: return "Band2Active"; break;
+    case 3: return "Band3Active"; break;
+    }
+    return "invalid";
+}
+juce::String ParametricEQAudioProcessor::getFilterSoloName(int index)
+{
+    switch (index)
+    {
+    case 0: return "Band0Solo"; break;
+    case 1: return "Band1Solo"; break;
+    case 2: return "Band2Solo"; break;
+    case 3: return "Band3Solo"; break;
+    }
+    return "invalid";
+}
+
 int ParametricEQAudioProcessor::getBandIndexFromID(juce::String paramID)
 {
     for (int i = 0; i < 4; ++i)
-        if (paramID.startsWith(getFilterBandName(i)))
+        if (paramID.startsWith(getFilterBandNum(i)))
         {
             return int(i);
         }
@@ -77,21 +124,136 @@ ParametricEQAudioProcessor::ParametricEQAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       ), tree(*this, nullptr, "PARAMS", createParameterLayout()), lastSampleRate(44100.0f)
+                       ), tree(*this, nullptr, "PARAMS", createParameterLayout()), lastSampleRate(44100.0f),
+    soloedBand(-1)
 
 #endif
 {
+    frequencies.resize(300);
+    for (int i = 0; i < frequencies.size(); ++i) {
+        frequencies[i] = 20.0 * std::pow(2.0, i / 30.0);
+    }
+    //Ensures all vectors set to same size, 
+    magnitudes.resize(frequencies.size());
+    lowShelfMagnitudes.resize(frequencies.size());
+    lowMidsMagnitudes.resize(frequencies.size());
+    highMidsMagnitudes.resize(frequencies.size());
+    highShelfMagnitudes.resize(frequencies.size());
+
     *filterChain.get<0>().state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf(44100, 134.2f, 0.62f, 1.0f);
     *filterChain.get<1>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(44100, 883.9f, 5.7f, 1.0f);
     *filterChain.get<2>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(44100, 883.9f, 5.7f, 1.0f);
     *filterChain.get<3>().state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf(44100, 6000.0f, 0.62f, 1.0f);
+    
+    filterChain.get<0>().state->getMagnitudeForFrequencyArray(frequencies.data(),
+        lowShelfMagnitudes.data(),
+        frequencies.size(), lastSampleRate);
+    filterChain.get<1>().state->getMagnitudeForFrequencyArray(frequencies.data(),
+        lowMidsMagnitudes.data(),
+        frequencies.size(), lastSampleRate);
+    filterChain.get<2>().state->getMagnitudeForFrequencyArray(frequencies.data(),
+        highMidsMagnitudes.data(),
+        frequencies.size(), lastSampleRate);
+    filterChain.get<3>().state->getMagnitudeForFrequencyArray(frequencies.data(),
+        highShelfMagnitudes.data(),
+        frequencies.size(), lastSampleRate);
+    
+
+    //Set all filters to bypassed by default 
+    filterChain.setBypassed<0>(true);
+    filterChain.setBypassed<1>(true);
+    filterChain.setBypassed<2>(true);
+    filterChain.setBypassed<3>(true);
+
+    //Add all APVTS parameter listeners 
     for (int i = 0; i < 4; ++i) 
     {
         tree.addParameterListener(getFilterCutoffParamName(i), this);
         tree.addParameterListener(getFilterQParamName(i), this);
         tree.addParameterListener(getFilterGainParamName(i), this);
+        tree.addParameterListener(getFilterActiveName(i), this);
+    }
+
+    updatePlots();
+    
+}
+
+void ParametricEQAudioProcessor::updatePlots()
+{
+    //Update total response 
+    juce::FloatVectorOperations::fill(magnitudes.data(), 1, magnitudes.size());
+    for (int i = 0; i < 4; ++i)
+    {
+        if (!bypassedBands[i])
+        {
+            juce::FloatVectorOperations::multiply(magnitudes.data(), getMagnitudes(i).data(), magnitudes.size());
+        }
+    }
+    sendChangeMessage();
+}
+
+const std::vector<double>& ParametricEQAudioProcessor::getMagnitudes(int index)
+{
+    switch (index)
+    {
+    case 0: return lowShelfMagnitudes; break;
+    case 1: return lowMidsMagnitudes; break;
+    case 2: return highMidsMagnitudes; break;
+    case 3: return highShelfMagnitudes; break; 
+    case 4: return magnitudes; break;
     }
     
+}
+
+void ParametricEQAudioProcessor::createFrequencyPlot(juce::Path& p, const std::vector<double>& mags, const juce::Rectangle<int> bounds, float pixelsPerDouble)
+{
+
+    p.startNewSubPath(float(bounds.getX()), mags[0] > 0 ? float(bounds.getCentreY() - pixelsPerDouble * std::log(mags[0]) / std::log(2.0)) : bounds.getBottom());
+    const auto xFactor = static_cast<double> (bounds.getWidth()) / frequencies.size(); //spacing between points 
+    for (size_t i = 1; i < frequencies.size(); ++i)
+    {
+        p.lineTo(float(bounds.getX() + i * xFactor),
+            float(mags[i] > 0 ? bounds.getCentreY() - pixelsPerDouble * std::log(mags[i]) / std::log(2.0) : bounds.getBottom()));
+    }
+    
+}
+
+void ParametricEQAudioProcessor::updateFilter(int index)
+{
+    juce::String cutoffID = getFilterCutoffParamName(index);
+    juce::String qID = getFilterQParamName(index);
+    juce::String gainID = getFilterGainParamName(index);
+
+    float cutoff = *tree.getRawParameterValue(cutoffID);
+    float q = *tree.getRawParameterValue(qID);
+    float gainDB = *tree.getRawParameterValue(gainID);
+    float gain = juce::Decibels::decibelsToGain(gainDB);
+
+    switch (index)
+    {
+    case 0: 
+        *filterChain.get<0>().state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf(lastSampleRate, cutoff, q, gain);
+        filterChain.get<0>().state->getMagnitudeForFrequencyArray(frequencies.data(), lowShelfMagnitudes.data(),
+            frequencies.size(), lastSampleRate);
+        break;
+    case 1: 
+        *filterChain.get<1>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(lastSampleRate, cutoff, q, gain); 
+        filterChain.get<1>().state->getMagnitudeForFrequencyArray(frequencies.data(), lowMidsMagnitudes.data(),
+            frequencies.size(), lastSampleRate);
+        break;
+    case 2: 
+        *filterChain.get<2>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(lastSampleRate, cutoff, q, gain); 
+        filterChain.get<2>().state->getMagnitudeForFrequencyArray(frequencies.data(), highMidsMagnitudes.data(),
+            frequencies.size(), lastSampleRate);
+        break;
+    case 3: 
+        *filterChain.get<3>().state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf(lastSampleRate, cutoff, q, gain); 
+        filterChain.get<3>().state->getMagnitudeForFrequencyArray(frequencies.data(), highShelfMagnitudes.data(),
+            frequencies.size(), lastSampleRate);
+        break;
+    }
+    updatePlots();
+
 }
 
 ParametricEQAudioProcessor::~ParametricEQAudioProcessor()
@@ -192,9 +354,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParametricEQAudioProcessor::
         }
         }
         auto gainParam = std::make_unique<juce::AudioParameterFloat>
-            (getFilterGainParamName(i), getFilterGainParamName(i), -18.0f, 18.0f, 0.0f);
+            (getFilterGainParamName(i), getFilterGainParamName(i), -24.0f, 24.0f, 0.0f);
+
+        auto activeParam = std::make_unique<juce::AudioParameterBool>
+            (getFilterActiveName(i), getFilterActiveName(i), false, juce::String(), nullptr, nullptr);
 
         params.push_back(std::move(gainParam));
+        params.push_back(std::move(activeParam));
 
     }
     return { params.begin(), params.end() };
@@ -204,6 +370,40 @@ void ParametricEQAudioProcessor::parameterChanged(const juce::String& parameter,
 {
     int index = getBandIndexFromID(parameter);
     updateFilter(index);
+}
+
+void ParametricEQAudioProcessor::updateActiveBands(int index)
+{
+    //If index was bypassed and button clicked, set index active and vice versa
+    bool newBypassedState = bypassedBands[index] ? false : true;
+    bypassedBands[index] = newBypassedState;
+
+    filterChain.setBypassed<0>(bypassedBands[0]);
+    filterChain.setBypassed<1>(bypassedBands[1]);
+    filterChain.setBypassed<2>(bypassedBands[2]);
+    filterChain.setBypassed<3>(bypassedBands[3]);
+
+    sendChangeMessage();
+}
+
+void ParametricEQAudioProcessor::updateSoloedBand(int index)
+{
+    soloedBand = index;
+    filterChain.setBypassed<0>(!(soloedBand == 0));
+    filterChain.setBypassed<1>(!(soloedBand == 1));
+    filterChain.setBypassed<2>(!(soloedBand == 2));
+    filterChain.setBypassed<3>(!(soloedBand == 3));
+}
+
+int ParametricEQAudioProcessor::getSoloedBand()
+{
+    //Returns index of soloed band, return -1 if no band soloed 
+    return soloedBand;
+}
+
+bool ParametricEQAudioProcessor::isBypassed(int index) 
+{
+    return bypassedBands[index];
 }
 
 //==============================================================================
@@ -314,27 +514,6 @@ bool ParametricEQAudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
 }
 #endif
 
-void ParametricEQAudioProcessor::updateFilter(int index)
-{
-    juce::String cutoffID = getFilterCutoffParamName(index);
-    juce::String qID = getFilterQParamName(index);
-    juce::String gainID = getFilterGainParamName(index); 
-
-    float cutoff = *tree.getRawParameterValue(cutoffID);
-    float q = *tree.getRawParameterValue(qID);
-    float gainDB = *tree.getRawParameterValue(gainID);
-    float gain = juce::Decibels::decibelsToGain(gainDB);
-
-    switch (index)
-    {
-    case 0: *filterChain.get<0>().state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf(lastSampleRate, cutoff, q, gain); break;
-    case 1: *filterChain.get<1>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(lastSampleRate, cutoff, q, gain); break;
-    case 2: *filterChain.get<2>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(lastSampleRate, cutoff, q, gain); break;
-    case 3: *filterChain.get<3>().state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf(lastSampleRate, cutoff, q, gain); break;
-    }
-
-}
-
 void ParametricEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -362,15 +541,18 @@ juce::AudioProcessorEditor* ParametricEQAudioProcessor::createEditor()
 //==============================================================================
 void ParametricEQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    auto state = tree.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
 void ParametricEQAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName(tree.state.getType()))
+            tree.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
 //==============================================================================
