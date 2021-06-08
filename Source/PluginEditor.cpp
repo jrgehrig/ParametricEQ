@@ -23,18 +23,6 @@ ParametricEQAudioProcessorEditor::FilterEditor::FilterEditor(ParametricEQAudioPr
 
     addAndMakeVisible(qDial);
     addAndMakeVisible(qLabel);
-    
-    
-    activeSwitch.setClickingTogglesState(true);
-    activeSwitch.setToggleState(!filterEditorProcessor.isBypassed(index),juce::NotificationType::dontSendNotification);
-    activeSwitch.setColour(juce::TextButton::buttonOnColourId, juce::Colours::powderblue);
-    activeSwitch.onClick = [this]() { filterEditorProcessor.updateActiveBands(index); filterEditorProcessor.updatePlots(); };
-    addAndMakeVisible(activeSwitch);
-    
-    //addAndMakeVisible(soloSwitch);
-    soloSwitch.setClickingTogglesState(true);
-    activeSwitch.setColour(juce::TextButton::buttonOnColourId, juce::Colours::powderblue);
-    soloSwitch.onClick = [this]() { filterEditorProcessor.updateSoloedBand(index); };
 
     switch (index)
     {
@@ -46,6 +34,16 @@ ParametricEQAudioProcessorEditor::FilterEditor::FilterEditor(ParametricEQAudioPr
 
     setColour(juce::GroupComponent::outlineColourId, filterResponseColour);
     
+    activeSwitch.setClickingTogglesState(true);
+    activeSwitch.setToggleState(!filterEditorProcessor.isBypassed(index),juce::NotificationType::dontSendNotification);
+    activeSwitch.setColour(juce::TextButton::buttonOnColourId, filterResponseColour);
+    activeSwitch.onClick = [this]() { filterEditorProcessor.updateActiveBands(index); filterEditorProcessor.updatePlots(); };
+    addAndMakeVisible(activeSwitch);
+    
+    //addAndMakeVisible(soloSwitch);
+    soloSwitch.setClickingTogglesState(true);
+    soloSwitch.setColour(juce::TextButton::buttonOnColourId, juce::Colours::powderblue);
+    soloSwitch.onClick = [this]() { filterEditorProcessor.updateSoloedBand(index); };
 
 }
 
