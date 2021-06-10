@@ -124,16 +124,14 @@ ParametricEQAudioProcessor::ParametricEQAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       ), tree(*this, nullptr, "PARAMS", createParameterLayout()), lastSampleRate(44100.0f),
-    soloedBand(-1)
+                       ), tree(*this, nullptr, "PARAMS", createParameterLayout()), lastSampleRate(44100.0f)
 
 #endif
 {
     frequencies.resize(300);
     for (int i = 0; i < frequencies.size(); ++i) {
         frequencies[i] = 20.0 * std::pow(2.0, i / 30.0);
-    }
-    //Ensures all vectors set to same size, 
+    } 
     magnitudes.resize(frequencies.size());
     lowShelfMagnitudes.resize(frequencies.size());
     lowMidsMagnitudes.resize(frequencies.size());
@@ -157,25 +155,21 @@ ParametricEQAudioProcessor::ParametricEQAudioProcessor()
     filterChain.get<3>().state->getMagnitudeForFrequencyArray(frequencies.data(),
         highShelfMagnitudes.data(),
         frequencies.size(), lastSampleRate);
-    
+     
+    filterChain.setBypassed<0>(bypassedBands[0]);
+    filterChain.setBypassed<1>(bypassedBands[1]);
+    filterChain.setBypassed<2>(bypassedBands[2]);
+    filterChain.setBypassed<3>(bypassedBands[3]);
 
-    //Set all filters to bypassed by default 
-    filterChain.setBypassed<0>(true);
-    filterChain.setBypassed<1>(true);
-    filterChain.setBypassed<2>(true);
-    filterChain.setBypassed<3>(true);
-
-    //Add all APVTS parameter listeners 
-    for (int i = 0; i < 4; ++i) 
+    for (int i = 0; i < 4; ++i)
     {
         tree.addParameterListener(getFilterCutoffParamName(i), this);
         tree.addParameterListener(getFilterQParamName(i), this);
         tree.addParameterListener(getFilterGainParamName(i), this);
         tree.addParameterListener(getFilterActiveName(i), this);
     }
-
-    updatePlots();
     
+    updatePlots(); 
 }
 
 void ParametricEQAudioProcessor::updatePlots()
@@ -202,12 +196,10 @@ const std::vector<double>& ParametricEQAudioProcessor::getMagnitudes(int index)
     case 3: return highShelfMagnitudes; break; 
     case 4: return magnitudes; break;
     }
-    
 }
 
 void ParametricEQAudioProcessor::createFrequencyPlot(juce::Path& p, const std::vector<double>& mags, const juce::Rectangle<int> bounds, float pixelsPerDouble)
 {
-
     p.startNewSubPath(float(bounds.getX()), mags[0] > 0 ? float(bounds.getCentreY() - pixelsPerDouble * std::log(mags[0]) / std::log(2.0)) : bounds.getBottom());
     const auto xFactor = static_cast<double> (bounds.getWidth()) / frequencies.size(); //spacing between points 
     for (size_t i = 1; i < frequencies.size(); ++i)
@@ -215,7 +207,6 @@ void ParametricEQAudioProcessor::createFrequencyPlot(juce::Path& p, const std::v
         p.lineTo(float(bounds.getX() + i * xFactor),
             float(mags[i] > 0 ? bounds.getCentreY() - pixelsPerDouble * std::log(mags[i]) / std::log(2.0) : bounds.getBottom()));
     }
-    
 }
 
 void ParametricEQAudioProcessor::updateFilter(int index)
@@ -223,11 +214,12 @@ void ParametricEQAudioProcessor::updateFilter(int index)
     juce::String cutoffID = getFilterCutoffParamName(index);
     juce::String qID = getFilterQParamName(index);
     juce::String gainID = getFilterGainParamName(index);
-
+    
     float cutoff = *tree.getRawParameterValue(cutoffID);
     float q = *tree.getRawParameterValue(qID);
     float gainDB = *tree.getRawParameterValue(gainID);
     float gain = juce::Decibels::decibelsToGain(gainDB);
+    
 
     switch (index)
     {
@@ -253,7 +245,6 @@ void ParametricEQAudioProcessor::updateFilter(int index)
         break;
     }
     updatePlots();
-
 }
 
 ParametricEQAudioProcessor::~ParametricEQAudioProcessor()
@@ -266,20 +257,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParametricEQAudioProcessor::
     juce::NormalisableRange<float> fullParamCutoffRange(20.0f, 20000.0f);
     fullParamCutoffRange.setSkewForCentre(883.9f);
 
-    juce::NormalisableRange<float> fullParamQRange(1.0f, 32.0f);
+    juce::NormalisableRange<float> fullParamQRange(0.1f, 32.0f);
     fullParamQRange.setSkewForCentre(5.7f);
 
     juce::NormalisableRange<float> lowShelfCutoffRange(20.0f, 600.0f);
     lowShelfCutoffRange.setSkewForCentre(134.2f);
 
-    juce::NormalisableRange<float> lowShelfQRange(0.5f, 2.0f);
+    juce::NormalisableRange<float> lowShelfQRange(0.1f, 2.0f);
     lowShelfQRange.setSkewForCentre(1.0f);
 
-    juce::NormalisableRange<float> highShelfCutoffRange(3000.0f, 12000.0f);
+    juce::NormalisableRange<float> highShelfCutoffRange(3000.0f, 20000.0f);
     highShelfCutoffRange.setSkewForCentre(6000.0f);
 
-    juce::NormalisableRange<float> highShelfQRange(0.5f, 2.0f);
+    juce::NormalisableRange<float> highShelfQRange(0.1f, 2.0f);
     highShelfQRange.setSkewForCentre(1.0f);
+
+    juce::NormalisableRange<float> gainRange(-24.0f, 24.0f);
 
     std::vector <std::unique_ptr<juce::RangedAudioParameter>> params;
     for (int i = 0; i < 4; ++i)
@@ -291,15 +284,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParametricEQAudioProcessor::
             auto cutoffParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterCutoffParamName(i), getFilterCutoffParamName(i), lowShelfCutoffRange, 134.2f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
-                    [](float param, int) {return juce::String(param, 1); });
-            
-            
+                    [](float param, int) {return juce::String(param, 1) + " Hz" ; });
+            params.push_back(std::move(cutoffParam));
             auto qParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterQParamName(i), getFilterQParamName(i), lowShelfQRange, 0.62f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
-                    [](float param, int) {return juce::String(param, 2); });
-
-            params.push_back(std::move(cutoffParam));
+                    [](float param, int) {return juce::String(param, 2); });   
             params.push_back(std::move(qParam));
             break;
         }
@@ -308,14 +298,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParametricEQAudioProcessor::
             auto cutoffParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterCutoffParamName(i), getFilterCutoffParamName(i), fullParamCutoffRange, 883.9f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
-                    [](float param, int) {return juce::String(param, 1); });
-
+                    [](float param, int) { return param > 1000 ? juce::String(param/1000.0f, 3) + " kHz" : juce::String(param,1) + " Hz"; });
+            params.push_back(std::move(cutoffParam));
             auto qParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterQParamName(i), getFilterQParamName(i), fullParamQRange, 5.7f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
                     [](float param, int) {return juce::String(param, 2); });
-
-            params.push_back(std::move(cutoffParam));
             params.push_back(std::move(qParam));
             break;
         }
@@ -324,14 +312,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParametricEQAudioProcessor::
             auto cutoffParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterCutoffParamName(i), getFilterCutoffParamName(i), fullParamCutoffRange, 883.9f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
-                    [](float param, int) {return juce::String(param, 1); });
-
+                    [](float param, int) { return param > 1000 ? juce::String(param/1000.0f, 3) + " kHz" : juce::String(param, 1) + " Hz";});
+            params.push_back(std::move(cutoffParam));
             auto qParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterQParamName(i), getFilterQParamName(i), fullParamQRange, 5.7f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
                     [](float param, int) {return juce::String(param, 2); });
-
-            params.push_back(std::move(cutoffParam));
             params.push_back(std::move(qParam));
             break;
             
@@ -341,27 +327,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParametricEQAudioProcessor::
             auto cutoffParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterCutoffParamName(i), getFilterCutoffParamName(i), highShelfCutoffRange, 6000.0f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
-                    [](float param, int) {return juce::String(param, 1); });
-
+                    [](float param, int) {return juce::String(param/1000.0f, 3) + " kHz"; });
+            params.push_back(std::move(cutoffParam));
             auto qParam = std::make_unique<juce::AudioParameterFloat>
                 (getFilterQParamName(i), getFilterQParamName(i), highShelfQRange, 0.62f,
                     juce::String(), juce::AudioProcessorParameter::genericParameter,
                     [](float param, int) {return juce::String(param, 2); });
-
-            params.push_back(std::move(cutoffParam));
             params.push_back(std::move(qParam));
             break;
         }
         }
         auto gainParam = std::make_unique<juce::AudioParameterFloat>
-            (getFilterGainParamName(i), getFilterGainParamName(i), -24.0f, 24.0f, 0.0f);
-
+            (getFilterGainParamName(i), getFilterGainParamName(i), gainRange, 0.0f,
+                juce::String(), juce::AudioProcessorParameter::genericParameter,
+                [](float param, int) {return juce::String(param, 1) + " dB"; });
+        params.push_back(std::move(gainParam));
         auto activeParam = std::make_unique<juce::AudioParameterBool>
             (getFilterActiveName(i), getFilterActiveName(i), false, juce::String(), nullptr, nullptr);
-
-        params.push_back(std::move(gainParam));
         params.push_back(std::move(activeParam));
-
     }
     return { params.begin(), params.end() };
 }
@@ -384,21 +367,6 @@ void ParametricEQAudioProcessor::updateActiveBands(int index)
     filterChain.setBypassed<3>(bypassedBands[3]);
 
     sendChangeMessage();
-}
-
-void ParametricEQAudioProcessor::updateSoloedBand(int index)
-{
-    soloedBand = index;
-    filterChain.setBypassed<0>(!(soloedBand == 0));
-    filterChain.setBypassed<1>(!(soloedBand == 1));
-    filterChain.setBypassed<2>(!(soloedBand == 2));
-    filterChain.setBypassed<3>(!(soloedBand == 3));
-}
-
-int ParametricEQAudioProcessor::getSoloedBand()
-{
-    //Returns index of soloed band, return -1 if no band soloed 
-    return soloedBand;
 }
 
 bool ParametricEQAudioProcessor::isBypassed(int index) 
@@ -541,6 +509,7 @@ juce::AudioProcessorEditor* ParametricEQAudioProcessor::createEditor()
 //==============================================================================
 void ParametricEQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    DBG("in get state");
     auto state = tree.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
@@ -550,9 +519,22 @@ void ParametricEQAudioProcessor::setStateInformation (const void* data, int size
 {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
 
-    if (xmlState.get() != nullptr)
+    if (xmlState.get() != nullptr) 
+    {
         if (xmlState->hasTagName(tree.state.getType()))
+        {
             tree.replaceState(juce::ValueTree::fromXml(*xmlState));
+        }
+    }
+    
+    for (int i = 0; i < 4; ++i)
+    {
+        juce::String activeID = getFilterActiveName(i);
+        bool active = *tree.getRawParameterValue(activeID);
+        if (active == bypassedBands[i])
+            updateActiveBands(i);
+        updateFilter(i);
+    }
 }
 
 //==============================================================================

@@ -54,10 +54,9 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    //Function to update a filter when a parameter is changed
+    //==============================================================================
     void updateFilter(int index);
 
-    //Get filter parameter/band name/ID functions 
     juce::String getFilterCutoffParamName(int index);  
     juce::String getFilterQParamName(int index);
     juce::String getFilterGainParamName(int index); 
@@ -69,14 +68,11 @@ public:
     bool isBypassed(int index);
     int getBandIndexFromID(juce::String paramID);
 
-    //Audio processor value tree state management stuff 
     juce::AudioProcessorValueTreeState tree;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout(); 
     void parameterChanged(const juce::String& parameter, float newValue) override;
 
     void updateActiveBands(int index); 
-    void updateSoloedBand(int index);
-    int getSoloedBand();
 
     void updatePlots();
     const std::vector<double>& getMagnitudes(int index);
@@ -95,13 +91,10 @@ private:
     FilterProcessor highShelf;
     juce::dsp::ProcessorChain<FilterProcessor, FilterProcessor, FilterProcessor, FilterProcessor> filterChain;
 
-    
-
     std::vector<double> frequencies;
     std::vector<double> magnitudes;
 
     float lastSampleRate;
-    int soloedBand; 
     bool bypassedBands[4] = { true, true, true, true };
 
     //==============================================================================

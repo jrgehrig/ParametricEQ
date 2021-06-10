@@ -27,24 +27,19 @@ public:
 
     //==============================================================================
     void paint (juce::Graphics&) override;
-
-    
-
     void resized() override;
     float getFrequencyForPosition(float pos);
     void changeListenerCallback(juce::ChangeBroadcaster* sender) override;
     
-    class FilterEditor : public juce::GroupComponent, public juce::Slider::Listener
+    class FilterEditor : public juce::GroupComponent
     {
     public:
         FilterEditor(ParametricEQAudioProcessor&, int);
         ~FilterEditor();
-        void sliderValueChanged(juce::Slider* slider) override;
         void resized() override; 
         
         void setSliderAttachments(int index);
         void setButtonAttachments(int index); 
-        void setActivesEnabled();
 
         juce::Slider* getCutoffDial();
         juce::Label* getCutoffLabel();
@@ -55,8 +50,7 @@ public:
         juce::Slider* getQDial();
         juce::Label* getQLabel();
 
-        juce::TextButton activeSwitch;
-        juce::TextButton soloSwitch;
+        juce::TextButton* getActiveSwitch();
 
         juce::Path filterResponse;
         juce::Colour filterResponseColour;
@@ -70,6 +64,8 @@ public:
 
         juce::Slider qDial;
         juce::Label qLabel;
+
+        juce::TextButton activeSwitch;
 
         ParametricEQAudioProcessor& filterEditorProcessor;
         int index; 
@@ -86,24 +82,17 @@ public:
     void setButtonAttachments(juce::OwnedArray<juce::AudioProcessorValueTreeState::ButtonAttachment>&, FilterEditor&, int index);
     
 private:
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
     ParametricEQAudioProcessor& audioProcessor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParametricEQAudioProcessorEditor);
 
     void updateFrequencyResponses();
 
-    static float getPositionForFrequency(float freq);
-
-    static float getPositionForGain(float gain, float top, float bottom);
-
     juce::Rectangle<int> plotFrame;
+
     juce::Path totalResponse;
 
-    juce::OwnedArray<FilterEditor> bands; 
+    juce::OwnedArray<FilterEditor> bands;   
 
-    juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> filter1ButtonAttachments;
-
-    
+    juce::SharedResourcePointer<juce::TooltipWindow> tooltipWindow;
 };

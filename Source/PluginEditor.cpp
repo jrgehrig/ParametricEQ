@@ -8,7 +8,9 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+
 static float maxDB = 24.0f;
+
 ParametricEQAudioProcessorEditor::FilterEditor::FilterEditor(ParametricEQAudioProcessor& p, int i) 
     : filterEditorProcessor(p), index(i)
 {
@@ -16,12 +18,15 @@ ParametricEQAudioProcessorEditor::FilterEditor::FilterEditor(ParametricEQAudioPr
     setTextLabelPosition(juce::Justification::centredTop);
 
     addAndMakeVisible(cutoffDial);
+    cutoffDial.setTooltip("Set this filter's cutoff frequency.");
     addAndMakeVisible(cutoffLabel);
 
     addAndMakeVisible(gainDial);
+    gainDial.setTooltip("Set this filter's gain.");
     addAndMakeVisible(gainLabel);
 
     addAndMakeVisible(qDial);
+    qDial.setTooltip("Set this filter's quality.");
     addAndMakeVisible(qLabel);
 
     switch (index)
@@ -39,12 +44,7 @@ ParametricEQAudioProcessorEditor::FilterEditor::FilterEditor(ParametricEQAudioPr
     activeSwitch.setColour(juce::TextButton::buttonOnColourId, filterResponseColour);
     activeSwitch.onClick = [this]() { filterEditorProcessor.updateActiveBands(index); filterEditorProcessor.updatePlots(); };
     addAndMakeVisible(activeSwitch);
-    
-    //addAndMakeVisible(soloSwitch);
-    soloSwitch.setClickingTogglesState(true);
-    soloSwitch.setColour(juce::TextButton::buttonOnColourId, juce::Colours::powderblue);
-    soloSwitch.onClick = [this]() { filterEditorProcessor.updateSoloedBand(index); };
-
+    activeSwitch.setTooltip("Activate or deactivate this filter.");
 }
 
 ParametricEQAudioProcessorEditor::FilterEditor::~FilterEditor()
@@ -64,7 +64,6 @@ void ParametricEQAudioProcessorEditor::FilterEditor::resized()
     qDial.setBounds(10, 210, 80, 80);
     qLabel.setBounds(10, 295, 80, 10);
 
-    soloSwitch.setBounds(70, 310, 20, 20);
     activeSwitch.setBounds(10, 310, 20, 20);
 }
 
@@ -95,6 +94,11 @@ juce::Label* ParametricEQAudioProcessorEditor::FilterEditor::getQLabel()
     return &qLabel;
 }
 
+juce::TextButton* ParametricEQAudioProcessorEditor::FilterEditor::getActiveSwitch()
+{
+    return &activeSwitch;
+}
+
 void ParametricEQAudioProcessorEditor::FilterEditor::setSliderAttachments(int index)
 {
     filterSliderAttachments.add(new juce::AudioProcessorValueTreeState::SliderAttachment
@@ -105,7 +109,6 @@ void ParametricEQAudioProcessorEditor::FilterEditor::setSliderAttachments(int in
 
     filterSliderAttachments.add(new juce::AudioProcessorValueTreeState::SliderAttachment
     (filterEditorProcessor.tree, filterEditorProcessor.getFilterQParamName(index), qDial));
-
 }
 
 void ParametricEQAudioProcessorEditor::FilterEditor::setButtonAttachments(int index)
@@ -114,28 +117,14 @@ void ParametricEQAudioProcessorEditor::FilterEditor::setButtonAttachments(int in
     (filterEditorProcessor.tree, filterEditorProcessor.getFilterActiveName(index), activeSwitch);
 }
 
-void ParametricEQAudioProcessorEditor::FilterEditor::setActivesEnabled()
-{
-
-}
-
-void ParametricEQAudioProcessorEditor::FilterEditor::sliderValueChanged(juce::Slider* slider)
-{
-    
-}
-
-
 void ParametricEQAudioProcessorEditor::genFilter(ParametricEQAudioProcessorEditor::FilterEditor& filter)
 {
-    filter.getCutoffDial()->setRange(20.0f, 20000.0f, 0.1f);
     filter.getCutoffDial()->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     filter.getCutoffDial()->setTextBoxStyle(juce::Slider::TextBoxBelow, true, 80, 15);
 
-    filter.getGainDial()->setRange(-24.0f, 24.0f, 0.1f);
     filter.getGainDial()->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     filter.getGainDial()->setTextBoxStyle(juce::Slider::TextBoxBelow, true, 80, 15);
 
-    filter.getQDial()->setRange(1.0f, 32.0f, 0.1f);
     filter.getQDial()->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     filter.getQDial()->setTextBoxStyle(juce::Slider::TextBoxBelow, true, 80, 15);
 
@@ -151,18 +140,14 @@ void ParametricEQAudioProcessorEditor::genFilter(ParametricEQAudioProcessorEdito
     filter.getQLabel()->setJustificationType(juce::Justification::horizontallyCentred);
     filter.getQLabel()->setFont(juce::Font(11.5f));
 
-    filter.activeSwitch.setButtonText("A");
-
-    filter.soloSwitch.setButtonText("S");
+    filter.getActiveSwitch()->setButtonText("A");
 }
 
 //==============================================================================
 ParametricEQAudioProcessorEditor::ParametricEQAudioProcessorEditor (ParametricEQAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    
+    tooltipWindow->setMillisecondsBeforeTipAppears(1000);
 
     for (int i = 0; i < 4; ++i) {
         auto* bandEditor = bands.add(new FilterEditor(audioProcessor,i));
@@ -194,27 +179,22 @@ void ParametricEQAudioProcessorEditor::changeListenerCallback(juce::ChangeBroadc
 void ParametricEQAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-    g.setFont(juce::Font(16.0f));
-    g.setColour(juce::Colours::white);
-
-    //
     g.setFont(12.0f);
     g.setColour(juce::Colours::silver);
     g.drawRoundedRectangle(plotFrame.toFloat(), 5, 2);
 
     //Vertical grid lines
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 11; ++i) {
         g.setColour(juce::Colours::silver.withAlpha(0.3f));
         auto x = plotFrame.getX() + plotFrame.getWidth() * i * 0.1f;
         if (i > 0) g.drawVerticalLine(juce::roundToInt(x), float(plotFrame.getY()), float(plotFrame.getBottom()));
 
         g.setColour(juce::Colours::silver);
         auto freq = getFrequencyForPosition(i * 0.1f);
-        g.drawFittedText((freq < 1000) ? juce::String(freq) + " Hz"
-            : juce::String(freq / 1000, 1) + " kHz",
-            juce::roundToInt(x + 3), plotFrame.getBottom() - 18, 50, 15, juce::Justification::left, 1);
+        g.drawFittedText((freq < 1000) ? juce::String(freq)
+            : juce::String(freq / 1000, 1) + "k",
+            juce::roundToInt(x) - 25, plotFrame.getBottom(), 50, 15, juce::Justification::centred,36);
     }
-
     //Horizontal grid lines 
     g.setColour(juce::Colours::silver.withAlpha(0.3f));
     g.drawHorizontalLine(juce::roundToInt(plotFrame.getY() + 0.25 * plotFrame.getHeight()), float(plotFrame.getX()), float(plotFrame.getRight()));
@@ -244,27 +224,14 @@ void ParametricEQAudioProcessorEditor::paint (juce::Graphics& g)
 void ParametricEQAudioProcessorEditor::updateFrequencyResponses()
 {
     auto pixelsPerDouble = 2.0f * plotFrame.getHeight() / juce::Decibels::decibelsToGain(maxDB);
-
     for (int i = 0; i < 4; ++i)
     {
         auto* filterEditor = bands.getUnchecked(i);
         filterEditor->filterResponse.clear();
         audioProcessor.createFrequencyPlot(filterEditor->filterResponse, audioProcessor.getMagnitudes(i), plotFrame.withX(plotFrame.getX() + 1), pixelsPerDouble);
     }
-
     totalResponse.clear();
     audioProcessor.createFrequencyPlot(totalResponse, audioProcessor.getMagnitudes(4), plotFrame.withX(plotFrame.getX() + 1), pixelsPerDouble);
-
-}
-
-float ParametricEQAudioProcessorEditor::getPositionForFrequency(float freq)
-{
-    return (std::log(freq / 20.0f) / std::log(2.0f)) / 10.0f;
-}
-
-float ParametricEQAudioProcessorEditor::getPositionForGain(float gain, float top, float bottom)
-{
-    return juce::jmap(juce::Decibels::gainToDecibels(gain, -maxDB), -maxDB, maxDB, bottom, top);
 }
 
 void ParametricEQAudioProcessorEditor::resized()
