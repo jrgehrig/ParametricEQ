@@ -509,7 +509,6 @@ juce::AudioProcessorEditor* ParametricEQAudioProcessor::createEditor()
 //==============================================================================
 void ParametricEQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    DBG("in get state");
     auto state = tree.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);

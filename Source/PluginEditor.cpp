@@ -42,6 +42,7 @@ ParametricEQAudioProcessorEditor::FilterEditor::FilterEditor(ParametricEQAudioPr
     activeSwitch.setClickingTogglesState(true);
     activeSwitch.setToggleState(!filterEditorProcessor.isBypassed(index),juce::NotificationType::dontSendNotification);
     activeSwitch.setColour(juce::TextButton::buttonOnColourId, filterResponseColour);
+    activeSwitch.setAlpha(1.0);
     activeSwitch.onClick = [this]() { filterEditorProcessor.updateActiveBands(index); filterEditorProcessor.updatePlots(); };
     addAndMakeVisible(activeSwitch);
     activeSwitch.setTooltip("Activate or deactivate this filter.");
